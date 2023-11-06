@@ -32,13 +32,15 @@ dependencies {
     implementation 'org.apache.flink:flink-clients:1.18.0'
 
     implementation 'org.apache.flink:flink-connector-files:1.18.0'
-    implementation 'org.apache.flink:flink-connector-kafka:3.0.0-1.17'
+    implementation 'org.apache.flink:flink-connector-kafka:3.0.1-1.18'
     //  implementation 'org.apache.kafka:kafka-clients:3.6.0'
 
     // implementation 'org.apache.flink:flink-streaming-java_2.12:1.14.0'
     // implementation 'org.apache.flink:flink-clients_2.12:1.14.0'
     // This dependency is used by the application.
     implementation 'com.google.guava:guava:32.1.1-jre'
+    implementation 'org.apache.flink:flink-shaded-guava:18.0-13.0'
+
 
     compileOnly 'org.apache.flink:flink-streaming-java:1.18.0'
 }

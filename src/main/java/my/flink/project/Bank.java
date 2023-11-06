@@ -40,11 +40,16 @@ import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
 
+import org.apache.flink.api.common.serialization.SerializationSchema;
 import org.apache.flink.api.common.serialization.DeserializationSchema;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.flink.connector.kafka.source.KafkaSource;
 import org.apache.flink.connector.kafka.source.KafkaSourceBuilder;
 import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
+import org.apache.flink.streaming.connectors.kafka.FlinkKafkaProducer;
+import org.apache.flink.connector.kafka.sink.KafkaRecordSerializationSchema;
+import org.apache.flink.connector.kafka.sink.KafkaSink;
+import org.apache.flink.runtime.JobException;
 
 
 
@@ -90,15 +95,20 @@ public class Bank {
     //         }
     //     });
 
+        // Configure Kafka producer properties
+        Properties properties = new Properties();
+        properties.setProperty("bootstrap.servers", "localhost:9092");
+        properties.setProperty("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+        properties.setProperty("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
     
         // (*) Recive transaction data from kafka datasource
         KafkaSource<String> kafkaSource = KafkaSource.<String>builder()
-        .setBootstrapServers("172.16.67.140:9092")
-        .setGroupId("flink-kafka-example")
-        .setTopics("flink-kafka-topic")
-        .setStartingOffsets(OffsetsInitializer.earliest()) 
-        .setValueOnlyDeserializer(new SimpleStringDeserializer())            
-        .build();
+                                            .setBootstrapServers("172.16.67.140:9092")
+                                            .setGroupId("flink-kafka-example")
+                                            .setTopics("flink-kafka-topic")
+                                            .setStartingOffsets(OffsetsInitializer.earliest()) 
+                                            .setValueOnlyDeserializer(new SimpleStringDeserializer())            
+                                            .build();
 
         //deprecated datasource
         // DataStream<String> kafkaStream = env.addSource(new FlinkKafkaConsumer<>(
@@ -106,9 +116,12 @@ public class Bank {
         //         new SimpleStringSchema(),
         //         kafkaProps
         //     ));
-
-        DataStream<Tuple2<String, String>> kafkaStream = env.fromSource(kafkaSource, WatermarkStrategy.noWatermarks(), "KafkaSource")
-            .map(new MapFunction<String, Tuple2<String, String>>()
+        
+        DataStream<Tuple2<String, String>> kafkaStream = env.fromSource(
+            kafkaSource,
+             WatermarkStrategy.noWatermarks(),
+             "KafkaSource")
+             .map(new MapFunction<String, Tuple2<String, String>>()
             {
                 public Tuple2<String, String> map(String value)
                 {
@@ -121,15 +134,61 @@ public class Bank {
 
         // (1) Check against alarmed customers
         DataStream<Tuple2<String, String>> alarmedCustTransactions = kafkaStream
-        .keyBy(0)
+        .keyBy(value -> value.f0)
+        // .keyBy(0)
         .connect(alarmedCustBroadcast)
         .process(new AlarmedCustCheck());
+
+        DataStream<Tuple2<String, String>> AllFlaggedTxn =	   
+        alarmedCustTransactions	;//.union(alarmedCustTransactions);
                                                         
-         alarmedCustTransactions.print();
+        alarmedCustTransactions.print();
+
+        //  FlinkKafkaProducer<String> flinkKafkaProducer = new FlinkKafkaProducer<>(
+        //     "my-topic",
+        //     new SimpleStringSchema(),
+        //     properties
+        // );
+
+        // Define a SerializationSchema for Tuple2
+        SerializationSchema<Tuple2<String, String>> tuple2SerializationSchema = new SerializationSchema<Tuple2<String, String>>() {
+            @Override
+            public byte[] serialize(Tuple2<String, String> element) {
+                // Convert Tuple2 to a String, for example by concatenating the elements with a comma
+                return (element.f0 + "," + element.f1).getBytes();
+            }
+        };
+
+        // DataStream<String> processedStream = kafkaStream.map(value -> "Processed: " + value);
+        // processedStream.print();
+        
+        // Create Kafka Sink
+        KafkaSink<Tuple2<String, String>> sink = KafkaSink.<Tuple2<String, String>>builder()
+        // KafkaSink<String> sink = KafkaSink.<String>builder()
+                        .setBootstrapServers("172.16.67.140:9092")
+                        .setRecordSerializer(KafkaRecordSerializationSchema.builder()
+                            .setTopic("output-topic")
+                            // .setKeySerializationSchema(new SimpleStringSchema())                            
+                            .setValueSerializationSchema(new SerializationSchema<Tuple2<String, String>>() {
+                                @Override
+                                public byte[] serialize(Tuple2<String, String> element) {
+                                    return (element.f0 + "," + element.f1).getBytes();
+                                }
+                            })
+                            // .setValueSerializationSchema(tuple2SerializationSchema)
+                            .build())
+                        .build();
+
+       alarmedCustTransactions.sinkTo(sink);
+
+        //  List<String> myList = Arrays.asList("apple", "banana", "cherry");
+        // List<String> upperCaseList = myList.stream()
+        //                            .map(String::toUpperCase)
+        //                            .collect(Collectors.toList());
 
 
         try {
-            env.execute("Alarmed Customers");
+            env.execute("Alarmed Customers job");
         } catch (Exception e) {            
             e.printStackTrace();
         }
