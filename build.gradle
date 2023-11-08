@@ -33,6 +33,8 @@ dependencies {
 
     implementation 'org.apache.flink:flink-connector-files:1.18.0'
     implementation 'org.apache.flink:flink-connector-kafka:3.0.1-1.18'
+    // implementation 'org.apache.flink:flink-connector-kafka-0.11_2.12:1.11.6'
+
     //  implementation 'org.apache.kafka:kafka-clients:3.6.0'
 
     // implementation 'org.apache.flink:flink-streaming-java_2.12:1.14.0'

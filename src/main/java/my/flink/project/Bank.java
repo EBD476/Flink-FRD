@@ -52,7 +52,6 @@ import org.apache.flink.connector.kafka.sink.KafkaSink;
 import org.apache.flink.runtime.JobException;
 
 
-
 import org.apache.flink.core.fs.Path;
 
 public class Bank {
@@ -101,6 +100,10 @@ public class Bank {
         properties.setProperty("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
         properties.setProperty("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
     
+        
+        // DataStream<String> kafkaData = env.addSource(new FlinkKafkaConsumer011("test", new SimpleStringSchema(), p));
+
+               
         // (*) Recive transaction data from kafka datasource
         KafkaSource<String> kafkaSource = KafkaSource.<String>builder()
                                             .setBootstrapServers("172.16.67.140:9092")
@@ -180,6 +183,9 @@ public class Bank {
                         .build();
 
        alarmedCustTransactions.sinkTo(sink);
+
+
+
 
         //  List<String> myList = Arrays.asList("apple", "banana", "cherry");
         // List<String> upperCaseList = myList.stream()
